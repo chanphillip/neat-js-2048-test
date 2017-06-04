@@ -1,0 +1,801 @@
+<style>
+body { background: #EEE; padding: 20px }
+button { border: 1px solid #DDD; font-size: 14px; padding: 4px 8px; margin: 1px 0 }
+#map { border-color: #DDD }
+#map.dead { border-color: #FFF; background: #EDD }
+#map td { height: 60px; }
+#map td.player { background: #0F0 }
+#map td.wall { background: #F99 }
+#network { width: 100% }
+</style>
+
+<table cellpadding="16" cellspacing="0" border="0" align="center">
+	<tr valign="top">
+		<td width="300">
+			<table cellpadding="0" cellspacing="0" border="1" width="100%" id="map">
+			</table>
+		</td>
+		<td bgcolor="#FFC" width="700">
+			<div>
+				<button id="btnStart">Start Simulator</button>
+				<button id="btnPause" hidden>Pause</button>
+				<button id="btnResume" hidden>Resume</button>
+				<br>
+				<button id="btnRun1000Generation" hidden>Run 1000 Gen</button>
+				<button id="btnRun300Generation" hidden>Run 100 Gen</button>
+				<button id="btnRun100Generation" hidden>Run 20 Gen</button>
+				<button id="btnRunGeneration" hidden>Run 1 Gen</button>
+				<button id="btnRunSpecies" hidden>Run Species</button>
+				<input type="checkbox" id="chbSkip" hidden checked>
+			</div>
+
+			<div style="background: #FFF; padding: 4px" id="display1"></div>
+
+			<div id="network"></div>
+
+			<div id="generationHistory">
+				<canvas width="100%" height="40"></canvas>
+			</div>
+		</td>
+	</tr>
+</table>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.1.1/cytoscape.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.6.0/Chart.min.js"></script>
+
+<script>
+var Simulator = function() {
+	this.FRAME_DELAY = 100;
+	this.SPECIES_N = 10;
+
+	this.generations = [];
+
+	this.currGeneration = 0;
+	this.currSpecies = this.SPECIES_N;
+	this.currState = 0;		// 0 = ongoing, 1 = pause
+
+	this.simState = 0;		// 0 = generation, 1 = species
+	this.simGenerationsLeft = 0;
+	this.simItv = null;
+
+	this.game = null;
+
+	this.isPaused = false;
+
+	this.cy = null;
+
+	this.pause = function() {
+		clearInterval(this.simItv);
+		this.simItv = null;
+
+		this.currState = 1;
+	};
+
+	this.resume = function() {
+		if ($('#chbSkip').is(':checked')) {
+			var result = false;
+			do {
+				result = this.runStep(this);
+			} while (result);
+		} else {
+			clearInterval(this.simItv);
+			this.simItv = setInterval(this.runStep, this.FRAME_DELAY, this);
+			this.runStep(this);
+		}
+	};
+
+	this.runStep = function(thisObj) {
+		if (!thisObj.game) {
+			// next species
+			++thisObj.currSpecies;
+			if (thisObj.currSpecies >= thisObj.SPECIES_N) {
+				thisObj.currSpecies = 0;
+
+				// next generation
+				var generationNew = new Generation(thisObj.SPECIES_N);
+				thisObj.generations.push(generationNew);
+
+				if (thisObj.generations.length == 1) {
+					generationNew.initAllSpecies();
+				} else {
+					generationNew.species = thisObj.generations[thisObj.currGeneration].getEvolvedGeneration();
+				}
+
+				thisObj.currGeneration = thisObj.generations.length - 1;
+			}
+
+			thisObj.game = new Game(thisObj.generations[thisObj.currGeneration].species[thisObj.currSpecies]);
+			thisObj.game.init();
+
+			thisObj.currState = 0;
+
+			if (!$('#chbSkip').is(':checked')) {
+				thisObj.updateDisplay(thisObj.game);
+			}
+		}
+
+		var currGame = thisObj.game;
+		var gameEnded = currGame.runStep();
+
+		if (!$('#chbSkip').is(':checked')) {
+			thisObj.updateDisplay(currGame);
+		}
+
+		if (gameEnded) {
+			var generation = thisObj.generations[thisObj.currGeneration];
+			var species = generation.species[thisObj.currSpecies];
+
+			generation.fitnesses[thisObj.currSpecies] = thisObj.game.ticks;		// ticks = score
+			species.addFitness(thisObj.game.ticks);
+
+			if (generation.fitnesses[thisObj.currSpecies] > generation.fitnessMax) {
+				generation.fitnessMax = generation.fitnesses[thisObj.currSpecies];
+				generation.fitnessMaxSpecies = generation.species[thisObj.currSpecies];
+			}
+
+			// 1 generation done
+			if (thisObj.simState == 0) {
+				if (thisObj.currSpecies == thisObj.SPECIES_N - 1) {
+					thisObj.pause();
+					thisObj.updateDisplay(currGame);
+					thisObj.drawGenerationHistory();
+					thisObj.game = null;
+
+					if (--thisObj.simGenerationsLeft > 0) {
+						if (!thisObj.isPaused) {
+							setTimeout(function(thisObj) {
+								thisObj.resume();
+							}, 50, thisObj);
+						}
+					}
+
+					return false;
+				} else {
+					thisObj.game = null;
+				}
+			// 1 species done
+			} else if (thisObj.simState == 1) {
+				thisObj.pause();
+				thisObj.updateDisplay(currGame);
+				thisObj.drawGenerationHistory();
+				thisObj.game = null;
+
+				return false;
+			}
+		}
+
+		return true;
+	};
+
+	this.updateDisplay = function(currGame) {
+		var generation = this.generations[this.currGeneration];
+
+		var html = '';
+		html += "<b>Generation:</b> #"+(this.currGeneration + 1)+"<br>";
+		html += "<b>Species:</b> #"+(this.currSpecies + 1)+" / "+this.SPECIES_N+"<br>";
+		html += "<b>Species ID:</b> "+this.generations[this.currGeneration].species[this.currSpecies].id+"<br>";
+		html += "<b>Ticks:</b> "+currGame.ticks+"<br>";
+		html += "<b>Game State:</b> "+this.currState+"<br>";
+		html += "<b>Best Fitness:</b> "+generation.fitnessMax+" ("+(generation.fitnessMaxSpecies ? generation.fitnessMaxSpecies.id : '-')+")<br>";
+		$('#display1').html(html);
+
+		this.drawMap(currGame);
+		this.drawNetwork();
+	};
+
+	this.drawMap = function(currGame) {
+		if (!$('#map').children().length) {
+			var html = '';
+			for (var i = 0; i < currGame.MAP_SIZE_H; ++i) {
+				html += '<tr>';
+				for (var j = 0; j < currGame.MAP_SIZE_W; ++j) {
+					html += '<td>&nbsp;</td>';
+				}
+				html += '</tr>';
+			}
+			$('#map').html(html);
+		}
+
+		$('#map td').removeClass('wall player');
+
+		var tds = $('#map tr:eq('+currGame.wallY+')').find('td');
+		for (var i = 0; i < currGame.MAP_SIZE_W; ++i) {
+			if (currGame.wall[i]) {
+				tds.eq(i).addClass('wall');
+			}
+		}
+
+		$('#map tr:last td:eq('+currGame.playerX+')').addClass('player');
+
+		$('#map').toggleClass('dead', currGame.state == 1);
+	};
+
+	this.drawNetwork = function() {
+		if (this.cy) {
+			this.cy.destroy();
+		}
+
+		var cy = cytoscape({
+			container: $('#network'),
+			style: [
+				{
+					selector: 'node',
+					style: {
+						width: 40,
+						height: 40,
+						content: 'data(name)',
+						'text-wrap': 'wrap',
+						'text-valign': 'center',
+						'text-halign': 'center',
+						'font-size': '10px',
+						color: '#FFF'
+					}
+				},
+				/*{
+					selector: 'edge',
+					style: {
+						content: 'data(name)',
+						'text-wrap': 'wrap',
+						'text-valign': 'center',
+						'text-halign': 'center',
+						'font-size': '10px',
+						color: '#000'
+					}
+				},*/
+			]
+		});
+
+		var species = this.generations[this.currGeneration].species[this.currSpecies];
+
+		// $('#network').height((Math.max(species.inputN, species.outputN) + 1) * 50);
+		$('#network').height(300);
+
+		var data = [];
+		for (var i = 0; i < species.inputN; ++i) {
+			data.push({
+				data: {
+					id: 'n'+species.brain.inputNodes[i].id,
+					name: species.brain.inputNodes[i].value.toFixed(3)
+				},
+				position: {
+					y: 40,
+					x: 50 * (i + 1)
+				},
+				classes: 'input',
+				style: {
+					'background-color': species.brain.inputNodes[i].value <= 0 ? '#999' : '#F3F'
+				}
+			});
+		}
+
+		var outputSelected = [
+			species.brain.outputNodes[0].value > species.brain.outputNodes[2].value && species.brain.outputNodes[0].value > species.brain.outputNodes[1].value,
+			species.brain.outputNodes[1].value > species.brain.outputNodes[2].value && species.brain.outputNodes[1].value > species.brain.outputNodes[0].value,
+			species.brain.outputNodes[2].value > species.brain.outputNodes[0].value && species.brain.outputNodes[2].value > species.brain.outputNodes[1].value
+		];
+		for (var i = 0; i < species.outputN; ++i) {
+			data.push({
+				data: {
+					id: 'n'+species.brain.outputNodes[i].id,
+					name: species.brain.outputNodes[i].value.toFixed(3)
+				},
+				position: {
+					y: 280,
+					x: 50 * (i + 1)
+				},
+				classes: 'output',
+				style: {
+					'background-color': !outputSelected[i] ? '#999' : '#F3F'
+				}
+			});
+		}
+
+		for (var i = species.inputN + species.outputN; i < species.brain.nodes.length; ++i) {
+			data.push({
+				data: {
+					id: 'n'+species.brain.nodes[i].id,
+					name: species.brain.nodes[i].value.toFixed(3)
+				},
+				position: {
+					y: 160,
+					x: 50 * (i - (species.inputN + species.outputN) + 1) + 25
+				}
+			});
+		}
+
+		for (var i = 0; i < species.brain.neurons.length; ++i) {
+			var neuron = species.brain.neurons[i];
+			data.push({
+				data: {
+					id: 'e' + i,
+					source: 'n' + neuron.getInputNode().id,
+					target: 'n' + neuron.getOutputNode().id,
+					name: neuron.weight.toFixed(3)
+				},
+				style: {
+					width: Math.abs(neuron.weight) * 8,
+					'line-color': neuron.weight < 0 ? '#F00' : '#0D0'
+				}
+			});
+		}
+
+		cy.add(data);
+
+		// style
+		// cy.
+
+		this.cy = cy;
+	};
+
+	var chart = null;
+	this.drawGenerationHistory = function() {
+		var startI = Math.max(0, this.generations.length - 100);
+		var labels = [];
+		var data1 = [];
+		var data2 = [];
+		for (var i = startI; i < this.generations.length; ++i) {
+			labels.push((i + 1)+": "+this.generations[i].fitnessMaxSpecies.id);
+			data1.push(this.generations[i].fitnessMax);
+			data2.push(this.generations[i].getAverageFitness());
+		}
+
+		var ctx = $('#generationHistory > canvas');
+		if (chart) {
+			chart.destroy();
+		}
+		chart = new Chart(ctx, {
+			type: 'bar',
+			data: {
+				labels: labels,
+				datasets: [
+					{
+						label: "Best Fitness",
+						backgroundColor: 'rgba(255, 100, 100, .5)',
+						data: data1
+					},
+					{
+						label: "Avg Fitness",
+						backgroundColor: 'rgba(100, 255, 100, .5)',
+						data: data2
+					}
+				]
+			},
+		    options: {
+		    	animation: {
+		    		duration: 0
+		    	},
+		        scales: {
+		        	xAxes: [{
+		        		display: false
+		        	}],
+		            yAxes: [{
+		                ticks: {
+		                    beginAtZero: true
+		                }
+		            }]
+		        }
+		    }
+		});
+	};
+
+	return this;
+};
+
+var Game = function(player) {
+	this.MAP_SIZE_W = 5;
+	this.MAP_SIZE_H = 5;
+
+	this.player = player;
+	this.ticks = 0;
+	this.state = 0;		// 0 = ongoing, 1 = ended
+
+	this.init = function() {
+		this.wall = [];
+		this.wallY = 0;
+		this.playerX = 2;
+
+		this.resetWall();
+	};
+
+	this.resetWall = function() {
+		this.wallY = 0;
+
+		var wall = [];
+		for (var i = 0; i < this.MAP_SIZE_W; ++i) {
+			wall[i] = 1;
+		}
+
+		var holdeIndex = Math.floor(Math.random() * this.MAP_SIZE_W);
+		wall[holdeIndex] = 0;
+		// if (holdeIndex - 1 >= 0) {
+		// 	wall[holdeIndex - 1] = 0;
+		// }
+		// if (holdeIndex + 1 < this.MAP_SIZE_W) {
+		// 	wall[holdeIndex + 1] = 0;
+		// }
+
+		this.wall = wall;
+	};
+
+	this.runStep = function() {
+		++this.ticks;
+
+		// get player inputs
+		var playerInputs = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+		playerInputs[7] = (this.playerX == 0 ? 1 : 0);
+		playerInputs[8] = (this.playerX == this.MAP_SIZE_W - 1 ? 1 : 0);
+
+		for (var i = 0; i < 7; ++i) {
+			if (this.playerX + i - 3 >= 0 && this.playerX + i - 3 < this.MAP_SIZE_W) {
+				playerInputs[i] = this.wall[this.playerX + i - 3] ? 1 : 0;
+			} else {
+				playerInputs[i] = 1;
+			}
+		}
+
+		// player moves
+		var decisions = this.player.decide(playerInputs);
+		if (decisions[0] > decisions[1] && decisions[0] > decisions[2]) {
+			// walk left
+			this.playerX = Math.max(0, this.playerX - 1);
+		} else if (decisions[1] > decisions[0] && decisions[1] > decisions[2]) {
+			// walk right
+			this.playerX = Math.min(this.playerX + 1, this.MAP_SIZE_W - 1);
+		}
+
+		// wall drops
+		++this.wallY;
+
+		// check death
+		if (this.wallY == this.MAP_SIZE_H - 1) {
+			if (this.wall[this.playerX]) {
+				this.state = 1;
+				return true;
+			}
+		} else if (this.wallY == this.MAP_SIZE_H) {
+			this.resetWall();
+		}
+
+		// limit!
+		if (this.ticks >= 1000) {
+			return true;
+		}
+
+		return false;
+	};
+
+	return this;
+};
+
+var Generation = function(speciesN) {
+	this.species = [];
+	this.fitnesses = [];
+	for (var i = 0; i < speciesN; ++i) {
+		this.fitnesses[i] = 0;
+	}
+	this.fitnessMax = 0;
+	this.fitnessMaxSpecies = null;
+
+	this.initAllSpecies = function() {
+		var species = [];
+		for (var i = 0; i < speciesN; ++i) {
+			species.push(this.getNewSpecies());
+		}
+		this.species = species;
+	};
+
+	this.getNewSpecies = function() {
+		var species = new PlayerSpecies();
+		species.initBrain();
+		return species;
+	};
+
+	this.getEvolvedGeneration = function() {
+		var results = [];
+		for (var i = 0; i < speciesN; ++i) {
+			results.push({
+				species: this.species[i],
+				fitness: this.fitnesses[i]
+			});
+		}
+		results.sort(function(a, b) {
+			return b.species.getAverageFitness() - a.species.getAverageFitness();
+		});
+
+		var species = [];
+
+		// copy old species
+		var keepN = Math.floor(speciesN * .2);
+		for (var i = 0; i < keepN; ++i) {
+			species.push(results[i].species);
+		}
+
+		// new species
+		var newN = speciesN - species.length;
+		for (var i = 0; i < newN; ++i) {
+			var speciesOriginal = results[i % keepN].species;
+
+			var speciesNew = new PlayerSpecies();
+			speciesNew.brain = speciesOriginal.brain.clone();
+			speciesNew.mutate(4);
+
+			species.push(speciesNew);
+		}
+
+		return species;
+	};
+
+	this.getAverageFitness = function() {
+		var sum = 0;
+		for (var i = 0; i < this.species.length; ++i) {
+			sum += this.species[i].getAverageFitness();
+		}
+		return sum / speciesN;
+	};
+
+	return this;
+};
+
+var speciesId = 0;
+var PlayerSpecies = function() {
+	this.id = (function(n) {
+		var ordA = 'A'.charCodeAt(0);
+		var ordZ = 'Z'.charCodeAt(0);
+		var len = ordZ - ordA + 1;
+		var s = "";
+		while (n >= 0) {
+			s = String.fromCharCode(n % len + ordA) + s;
+			n = Math.floor(n / len) - 1;
+		}
+		return s;
+	})(speciesId++);
+
+	this.inputN = 9;
+	this.outputN = 3;
+
+	this.brain = new NeuralNetwork(this.inputN, this.outputN);
+	this.fitnessHistories = [];
+
+	this.initBrain = function() {
+		this.brain.initAllNeurons();
+	};
+
+	this.decide = function(inputs) {
+		return this.brain.calculate(inputs);
+	};
+
+	this.mutate = function(intensity) {
+		this.brain.mutate(intensity);
+	};
+
+	this.addFitness = function(fitness) {
+		this.fitnessHistories.push(fitness);
+		if (this.fitnessHistories.length > 5) {
+			this.fitnessHistories.pop();
+		}
+	};
+
+	this.getAverageFitness = function() {
+		var sum = 0;
+		for (var i = 0; i < this.fitnessHistories.length; ++i) {
+			sum += this.fitnessHistories[i];
+		}
+		return sum / this.fitnessHistories.length;
+	};
+
+	return this;
+};
+
+var NeuralNetwork = function(inputN, outputN) {
+	// multiple layers?
+
+	this.nodes = [];
+	this.neurons = [];
+
+	this.inputNodes = [];
+	this.outputNodes = [];
+
+	this.addNeuron = function(inputNodeIndex, outputNodeIndex, weight) {
+		var neuron = new Neuron(this.nodes, inputNodeIndex, outputNodeIndex, weight);
+		this.neurons.push(neuron);
+
+		this.nodes[inputNodeIndex].outputNeurons.push(neuron);
+		this.nodes[outputNodeIndex].inputNeurons.push(neuron);
+	};
+
+	for (var i = 0; i < inputN + outputN; ++i) {
+		var nodeNew = new Node(i);
+		this.nodes.push(nodeNew);
+
+		if (i < inputN) {
+			this.inputNodes.push(nodeNew);
+		} else {
+			this.outputNodes.push(nodeNew);
+		}
+	}
+
+	// testing new node
+	// for (var i = 0; i < 3; ++i) {
+	// 	var nodeId = this.nodes.length;
+	// 	var nodeNew = new Node(nodeId);
+	// 	this.nodes.push(nodeNew);
+
+	// 	this.addNeuron(2 + i, nodeId);
+	// 	this.addNeuron(nodeId, inputN + i);
+	// }
+
+	this.initAllNeurons = function() {
+		// for (var i = 0; i < this.neurons.length; ++i) {
+		// 	this.neurons[i].weight = Math.random() * 2 - 1;		// -1 ~ 1
+		// }
+		for (var i = 0; i < inputN; ++i) {
+			for (var j = 0; j < outputN; ++j) {
+				this.addNeuron(i, inputN + j);
+			}
+		}
+
+		this.mutate(1);
+	};
+
+	this.calculate = function(inputs) {
+		for (var i = 0; i < inputN; ++i) {
+			this.inputNodes[i].value = inputs[i];
+		}
+
+		var outputs = [];
+		for (var i = 0; i < outputN; ++i) {
+			outputs.push(this.outputNodes[i].calculate());
+		}
+		return outputs;
+	};
+
+	this.clone = function() {
+		var neuralNetworkNew = new NeuralNetwork(inputN, outputN);
+
+		// copy additional nodes
+		for (var i = inputN + outputN; i < this.nodes.length; ++i) {
+			var node = this.nodes[i];
+			var nodeNew = new Node(node.id);
+			neuralNetworkNew.nodes.push(nodeNew);
+		}
+
+		// copy all neurons
+		for (var i = 0; i < this.neurons.length; ++i) {
+			var neuron = this.neurons[i];
+			neuralNetworkNew.addNeuron(neuron.inputNodeIndex, neuron.outputNodeIndex, neuron.weight);
+		}
+		return neuralNetworkNew;
+	};
+
+	this.mutate = function(intensity) {
+		while (intensity-- > 0) {
+			var neuronIndex = Math.floor(Math.random() * this.neurons.length);
+			var neuron = this.neurons[neuronIndex];
+
+			neuron.weight = Math.random() * 2 - 1;		// -1 ~ 1
+		}
+	};
+
+	this.export = function() {
+		var txt = '';
+		for (var i = 0; i < this.neurons.length; ++i) {
+			txt += (txt ? ',' : '')+this.neurons[i].weight.toFixed(6);
+		}
+		return txt;
+	};
+
+	this.import = function(txt) {
+		var tmp = txt.split(',');
+		if (tmp.length != this.neurons.length) {
+			console.error("Incorrect length", tmp.length, this.neurons.length);
+		} else {
+			for (var i = 0; i < this.neurons.length; ++i) {
+				this.neurons[i].weight = parseFloat(tmp[i]);
+			}
+		}
+	};
+
+	return this;
+};
+
+var Neuron = function(nodes, inputNodeIndex, outputNodeIndex, weight) {
+	this.inputNodeIndex = inputNodeIndex;
+	this.outputNodeIndex = outputNodeIndex;
+	this.weight = weight || 0;
+
+	this.getInputNode = function() {
+		return nodes[this.inputNodeIndex];
+	};
+
+	this.getOutputNode = function() {
+		return nodes[this.outputNodeIndex];
+	};
+
+	return this;
+};
+
+var Node = function(id) {
+	this.id = id;
+	this.inputNeurons = [];
+	this.outputNeurons = [];
+	this.value = 0;
+
+	this.calculate = function() {
+		if (this.inputNeurons.length) {
+			var sum = 0;
+			for (var i = 0; i < this.inputNeurons.length; ++i) {
+				sum += this.inputNeurons[i].getInputNode().calculate() * this.inputNeurons[i].weight;
+			}
+			this.value = sum;
+			return sum;
+		} else {
+			return this.value;
+		}
+	};
+
+	return this;
+};
+
+function findById(id) {
+	for (var i = 0; i < thisSimulator.generations.length; ++i) {
+		for (var j = 0; j < thisSimulator.generations[i].species.length; ++j) {
+			if (thisSimulator.generations[i].species[j].id == id) {
+				return thisSimulator.generations[i].species[j];
+			}
+		}
+	}
+}
+
+var thisSimulator;
+$('#btnStart').click(function() {
+	thisSimulator = new Simulator();
+
+	$('#btnStart').hide();
+	$('#btnRunSpecies, #btnRunGeneration, #btnRun300Generation, #btnRun1000Generation, #btnRun100Generation, #chbSkip').show();
+});
+$('#btnPause').click(function() {
+	thisSimulator.pause();
+	$('#btnPause').hide();
+	$('#btnResume').show();
+	thisSimulator.isPaused = true;
+	$('#btnRunSpecies, #btnRunGeneration, #btnRun300Generation, #btnRun1000Generation, #btnRun100Generation').prop('disabled', 'disabled');
+});
+$('#btnResume').click(function() {
+	thisSimulator.resume();
+	$('#btnPause').show();
+	$('#btnResume').hide();
+	thisSimulator.isPaused = false;
+	$('#btnRunSpecies, #btnRunGeneration, #btnRun300Generation, #btnRun1000Generation, #btnRun100Generation').prop('disabled', '');
+});
+$('#btnRun1000Generation').click(function() {
+	thisSimulator.simState = 0;
+	thisSimulator.simGenerationsLeft = 1000;
+	thisSimulator.resume();
+	$('#btnPause').show();
+});
+$('#btnRun300Generation').click(function() {
+	thisSimulator.simState = 0;
+	thisSimulator.simGenerationsLeft = 100;
+	thisSimulator.resume();
+	$('#btnPause').show();
+});
+$('#btnRun100Generation').click(function() {
+	thisSimulator.simState = 0;
+	thisSimulator.simGenerationsLeft = 20;
+	thisSimulator.resume();
+	$('#btnPause').show();
+});
+$('#btnRunGeneration').click(function() {
+	thisSimulator.simState = 0;
+	thisSimulator.simGenerationsLeft = 1;
+	thisSimulator.resume();
+	$('#btnPause').show();
+});
+$('#btnRunSpecies').click(function() {
+	thisSimulator.simState = 1;
+	thisSimulator.resume();
+	$('#btnPause').show();
+});
+</script>
