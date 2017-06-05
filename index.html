@@ -106,6 +106,8 @@ var Simulator = function() {
 				} else {
 					var generation = thisObj.generations[thisObj.currGeneration];
 					generationNew.evolveFrom(generation);
+
+					generation.destroy();
 				}
 
 				// init all species
@@ -751,6 +753,15 @@ var Generation = function() {
 		return genomes;
 	};
 
+	this.destroy = function() {
+		for (var i = 0; i < this.genomes.length; ++i) {
+			var genome = this.genomes[i];
+			genome.destroy();
+		}
+		this.genomes = null;
+		this.species = null;
+	};
+
 	return this;
 };
 
@@ -1177,6 +1188,28 @@ var Genome = function(genomeId) {
 			SimulatorConfig.SPECIES_COMP_C3 * result.weightDiff
 		);
 		return (distance <= SimulatorConfig.SPECIES_COMP_THRESHOLD);
+	};
+
+	this.destroy = function() {
+		this.inputNodes = null;
+		this.outputNodes = null;
+
+		for (var nodeId in this.nodes) {
+			var node = this.nodes[nodeId];
+			node.inputConnections = null;
+			node.outputConnections = null;
+			delete node;
+		}
+
+		for (var connectionId in this.connections) {
+			var connection = this.connections[connectionId];
+			delete connection;
+		}
+
+		this.nodes = null;
+		this.connections = null;
+
+		delete this;
 	};
 
 	// this.export = function() {
