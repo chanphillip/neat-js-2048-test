@@ -1,3 +1,4 @@
+
 <style>
 body { background: #EEE; padding: 20px }
 button { border: 1px solid #DDD; font-size: 14px; padding: 4px 8px; margin: 1px 0 }
@@ -21,11 +22,13 @@ button { border: 1px solid #DDD; font-size: 14px; padding: 4px 8px; margin: 1px 
 				<button id="btnPause" hidden>Pause</button>
 				<button id="btnResume" hidden>Resume</button>
 				<br>
-				<button id="btnRun1000Generation" hidden>Run 1000 Gen</button>
-				<button id="btnRun300Generation" hidden>Run 100 Gen</button>
-				<button id="btnRun100Generation" hidden>Run 20 Gen</button>
-				<button id="btnRunGeneration" hidden>Run 1 Gen</button>
-				<button id="btnRunSpecies" hidden>Run Species</button>
+				<button class="btn-run btn-run-generation" data-count="300" hidden>300 Gen</button>
+				<button class="btn-run btn-run-generation" data-count="100" hidden>100 Gen</button>
+				<button class="btn-run btn-run-generation" data-count="50" hidden>50 Gen</button>
+				<button class="btn-run btn-run-generation" data-count="20" hidden>20 Gen</button>
+				<button class="btn-run btn-run-generation" data-count="10" hidden>10 Gen</button>
+				<button class="btn-run btn-run-generation" data-count="1" hidden>1 Gen</button>
+				<button class="btn-run" id="btnRunSpecies" hidden>1 Genome</button>
 				<input type="checkbox" id="chbSkip" hidden checked>
 			</div>
 
@@ -58,8 +61,8 @@ var Simulator = function() {
 
 	this.speciesIdInc = 0;
 	this.genomeIdInc = 0;
-	this.connectionIdInc = SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT;
-	this.nodeIdInc = 0;
+	this.connectionIdInc = 0;
+	this.nodeIdInc = SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT;
 
 	this.game = null;
 
@@ -102,13 +105,6 @@ var Simulator = function() {
 					generationNew.initFirstGeneration();
 				} else {
 					var generation = thisObj.generations[thisObj.currGeneration];
-
-					// calculate adjusted fitness
-					generation.adjustAllGenomesFitness();
-
-					// update species fitness histories
-					generation.updateAllSpecies();
-
 					generationNew.evolveFrom(generation);
 				}
 
@@ -141,9 +137,17 @@ var Simulator = function() {
 
 			genome.fitness = thisObj.game.ticks;		// ticks = score
 
+			if (thisObj.currGenome == generation.genomes.length - 1) {
+				// calculate adjusted fitness
+				generation.adjustAllGenomesFitness();
+
+				// update species fitness histories
+				generation.updateAllSpecies();
+			}
+
 			// 1 generation done
 			if (thisObj.simState == 0) {
-				if (thisObj.currGenome == thisObj.generations[thisObj.currGeneration].genomes.length - 1) {
+				if (thisObj.currGenome == generation.genomes.length - 1) {
 					thisObj.pause();
 					thisObj.updateDisplay(currGame);
 					thisObj.drawGenerationHistory();
@@ -155,6 +159,8 @@ var Simulator = function() {
 								thisObj.resume();
 							}, 50, thisObj);
 						}
+					} else {
+						$('.btn-run').prop('disabled', '');
 					}
 
 					return false;
@@ -165,10 +171,12 @@ var Simulator = function() {
 			} else if (thisObj.simState == 1) {
 				thisObj.pause();
 				thisObj.updateDisplay(currGame);
-				if (thisObj.currGenome == thisObj.generations[thisObj.currGeneration].genomes.length - 1) {
+				if (thisObj.currGenome == generation.genomes.length - 1) {
 					thisObj.drawGenerationHistory();
 				}
 				thisObj.game = null;
+
+				$('.btn-run').prop('disabled', '');
 
 				return false;
 			}
@@ -185,7 +193,7 @@ var Simulator = function() {
 		html += "<b>Generation:</b> #"+(this.currGeneration + 1)+"<br>";
 		html += "<b>Genome:</b> "+(this.currGenome + 1)+" / "+generation.genomes.length+" (#"+genome.id+")<br>";
 		html += "<b>Species ID:</b> #"+genome.species.id+" / "+Object.keys(generation.speciesCounts).length+"<br>";
-		html += "<b>Ticks:</b> "+currGame.ticks+"<br>";
+		html += "<b>Fitness:</b> "+currGame.ticks+"<br>";
 		html += "<b>Game State:</b> "+this.currState+"<br>";
 		// html += "<b>Best Fitness:</b> "+generation.fitnessMax+" ("+(generation.fitnessMaxSpecies ? generation.fitnessMaxSpecies.id : '-')+")<br>";
 		$('#display1').html(html);
@@ -262,79 +270,88 @@ var Simulator = function() {
 		$('#network').height(300);
 
 		var data = [];
-		for (var i = 0; i < SimulatorConfig.INPUT_COUNT; ++i) {
-			data.push({
-				data: {
-					id: 'n'+genome.inputNodes[i].id,
-					name: genome.inputNodes[i].value.toFixed(3)
-				},
-				position: {
-					y: 40,
-					x: 50 * (i + 1)
-				},
-				classes: 'input',
-				style: {
-					'background-color': genome.inputNodes[i].value < .5 ? '#999' : '#F3F'
-				}
-			});
-		}
 
 		// sort decisions
 		var sortedDecisions = [];
 		for (var i = 0; i < genome.outputNodes.length; ++i) {
 			sortedDecisions.push({
 				i: i,
-				outputNode: genome.outputNodes[i]
+				value: genome.outputNodes[i].calculate()
 			});
 		}
 		sortedDecisions.sort(function(a, b) {
 			return b.value - a.value;
 		});
 
-		for (var i = 0; i < SimulatorConfig.OUTPUT_COUNT; ++i) {
-			data.push({
-				data: {
-					id: 'n'+genome.outputNodes[i].id,
-					name: genome.outputNodes[i].value.toFixed(3)
-				},
-				position: {
-					y: 280,
-					x: 50 * (i + 1)
-				},
-				classes: 'output',
-				style: {
-					'background-color': sortedDecisions[0].i == i ? '#F3F' : '#999'
-				}
-			});
+		// hidden nodes
+		var hiddenNodeI = 0;
+		for (var nodeId in genome.nodes) {
+			var node = genome.nodes[nodeId];
+			var value = node.calculate();
+			if (node.type == 'input') {
+				data.push({
+					data: {
+						id: 'n'+node.id,
+						name: node.value.toFixed(3)
+					},
+					position: {
+						y: 40,
+						x: 50 * (node.id + 1)
+					},
+					classes: 'input',
+					style: {
+						'background-color': node.value >= .5 ? '#F3F' : '#999'
+					}
+				});
+			} else if (node.type == 'output') {
+				data.push({
+					data: {
+						id: 'n'+node.id,
+						name: value.toFixed(3)
+					},
+					position: {
+						y: 280,
+						x: 50 * (node.id - SimulatorConfig.INPUT_COUNT + 1)
+					},
+					classes: 'output',
+					style: {
+						'background-color': sortedDecisions[0].i == node.id - SimulatorConfig.INPUT_COUNT ? '#F3F' : '#999'
+					}
+				});
+			} else if (node.type == 'hidden') {
+				data.push({
+					data: {
+						id: 'n'+node.id,
+						name: value.toFixed(3)
+					},
+					position: {
+						y: 160,
+						x: 50 * (hiddenNodeI++) + 25
+					},
+					classes: 'hidden',
+					style: {
+						'background-color': value >= .5 ? '#F3F' : '#999'
+					}
+				});
+			}
 		}
 
-		for (var i = SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT; i < genome.nodes.length; ++i) {
-			data.push({
-				data: {
-					id: 'n'+genome.nodes[i].id,
-					name: genome.nodes[i].value.toFixed(3)
-				},
-				position: {
-					y: 160,
-					x: 50 * (i - (SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT) + 1) + 25
-				}
-			});
-		}
-
-		for (var i = 0; i < genome.connections.length; ++i) {
-			var connection = genome.connections[i];
-			data.push({
-				data: {
-					id: 'e' + i,
-					source: 'n' + connection.getInputNode().id,
-					target: 'n' + connection.getOutputNode().id,
-					name: connection.weight.toFixed(3)
-				},
-				style: {
-					width: Math.abs(connection.weight) * 8,
-					'line-color': connection.weight < 0 ? '#F00' : '#0D0'
-				}
-			});
+		for (var connectionId in genome.connections) {
+			var connection = genome.connections[connectionId];
+			if (!connection.disabled) {
+				data.push({
+					data: {
+						id: 'e' + connectionId,
+						source: 'n' + connection.getInputNode().id,
+						target: 'n' + connection.getOutputNode().id,
+						name: connection.weight.toFixed(3)
+					},
+					style: {
+						width: Math.abs(connection.weight) * 8,
+						'line-color': connection.weight < 0 ? '#F00' : '#0D0'
+					}
+				});
+			}
 		}
 
 		cy.add(data);
@@ -347,13 +364,17 @@ var Simulator = function() {
 
 	var chart = null;
 	this.drawGenerationHistory = function() {
-		var startI = Math.max(0, this.generations.length - 100);
+		var startI = Math.max(0, this.generations.length - 1 - 100);
 		var labels = [];
 		var data1 = [];
-		// var data2 = [];
+		var data2 = [];
 		for (var i = startI; i < this.generations.length; ++i) {
-			labels.push((i + 1)+": "+this.generations[i].id);
-			data1.push(this.generations[i].getFitnessMax());
+			var generation = this.generations[i];
+			var fitnessMaxData = generation.getFitnessData();
+
+			labels.push((i + 1)+": "+fitnessMaxData.genome.species.id);
+			data1.push(fitnessMaxData.fitnessMax);
+			data2.push(fitnessMaxData.fitnessAverage * 200);
 			// data2.push(this.generations[i].getAverageFitness());
 		}
 
@@ -371,11 +392,11 @@ var Simulator = function() {
 						backgroundColor: 'rgba(255, 100, 100, .5)',
 						data: data1
 					},
-					// {
-					// 	label: "Avg Fitness",
-					// 	backgroundColor: 'rgba(100, 255, 100, .5)',
-					// 	data: data2
-					// }
+					{
+						label: "Avg Fitness",
+						backgroundColor: 'rgba(100, 255, 100, .5)',
+						data: data2
+					}
 				]
 			},
 		    options: {
@@ -400,8 +421,9 @@ var Simulator = function() {
 };
 
 var Game = function(player) {
-	this.MAP_SIZE_W = 5;
+	this.MAP_SIZE_W = 3;
 	this.MAP_SIZE_H = 5;
+	this.PLAYER_INIT_X = 1;
 
 	this.player = player;		// genome
 	this.ticks = 0;
@@ -410,7 +432,7 @@ var Game = function(player) {
 	this.init = function() {
 		this.wall = [];
 		this.wallY = 0;
-		this.playerX = 2;
+		this.playerX = this.PLAYER_INIT_X;
 
 		this.resetWall();
 	};
@@ -439,14 +461,14 @@ var Game = function(player) {
 		++this.ticks;
 
 		// get player inputs
-		var playerInputs = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+		var playerInputs = [0, 0, 0, 0, 0];
 
-		playerInputs[7] = (this.playerX == 0 ? 1 : 0);
-		playerInputs[8] = (this.playerX == this.MAP_SIZE_W - 1 ? 1 : 0);
+		playerInputs[3] = (this.playerX == 0 ? 1 : -1);
+		playerInputs[4] = (this.playerX == this.MAP_SIZE_W - 1 ? 1 : -1);
 
-		for (var i = 0; i < 7; ++i) {
-			if (this.playerX + i - 3 >= 0 && this.playerX + i - 3 < this.MAP_SIZE_W) {
-				playerInputs[i] = this.wall[this.playerX + i - 3] ? 1 : 0;
+		for (var i = 0; i < 3; ++i) {
+			if (this.playerX + i - 1 >= 0 && this.playerX + i - 1 < this.MAP_SIZE_W) {
+				playerInputs[i] = this.wall[this.playerX + i - 1] ? 1 : -1;
 			} else {
 				playerInputs[i] = 1;
 			}
@@ -460,19 +482,25 @@ var Game = function(player) {
 		for (var i = 0; i < this.player.outputNodes.length; ++i) {
 			sortedDecisions.push({
 				i: i,
-				outputNode: this.player.outputNodes[i]
+				value: this.player.outputNodes[i].calculate()
 			});
 		}
 		sortedDecisions.sort(function(a, b) {
 			return b.value - a.value;
 		});
 
-		if (sortedDecisions[0].outputNode.id == 0) {
-			// walk left
-			this.playerX = Math.max(0, this.playerX - 1);
-		} else if (sortedDecisions[0].outputNode.id == 1) {
-			// walk right
-			this.playerX = Math.min(this.playerX + 1, this.MAP_SIZE_W - 1);
+		switch (sortedDecisions[0].i) {
+			case 0:
+				// walk left
+				this.playerX = Math.max(0, this.playerX - 1);
+				break;
+			case 1:
+				// walk right
+				this.playerX = Math.min(this.playerX + 1, this.MAP_SIZE_W - 1);
+				break;
+			case 2:
+				// stay
+				break;
 		}
 
 		// wall drops
@@ -609,7 +637,7 @@ var Generation = function() {
 			});
 
 			// remove lowest performing genomes
-			var removeCount = Math.floor(generationPrev.speciesCounts[z] * (1 - SimulatorConfig.OFFSPRING_PROP));
+			var removeCount = Math.floor(generationPrev.speciesCounts[z] * SimulatorConfig.OFFSPRING_REMOVE_PROP);
 			speciesGenomes[z].splice(speciesGenomes[z].length - removeCount - 1, removeCount);
 
 			// check if reproduction is allowed
@@ -637,14 +665,31 @@ var Generation = function() {
 		this.genomes = genomes;
 	};
 
-	this.getFitnessMax = function() {
-		var fitnessMax = 0;
-		for (var i = 0; i < this.genomes.length; ++i) {
-			if (this.genomes[i].fitness > fitnessMax) {
-				fitnessMax = this.genomes[i].fitness;
+	var fitnessData = null;
+	this.getFitnessData = function() {
+		if (!fitnessData) {
+			var fitnessMax = 0;
+			var fitnessSum = 0;
+
+			var genomeMax = null;
+			for (var i = 0; i < this.genomes.length; ++i) {
+				var genome = this.genomes[i];
+				if (this.genomes[i].fitness > fitnessMax) {
+					fitnessMax = genome.fitness;
+					genomeMax = genome;
+				}
+				fitnessSum += genome.adjustedFitness;
 			}
+			fitnessData = {
+				fitnessMax: fitnessMax,
+				fitnessAverage: fitnessSum / this.genomes.length,
+				genome: genomeMax
+			};
+
+			// free memory?
+			// this.genomes = [];
 		}
-		return fitnessMax;
+		return fitnessData;
 	};
 
 	this.adjustAllGenomesFitness = function() {
@@ -728,8 +773,8 @@ var Species = function(speciesId) {
 
 var Genome = function(genomeId) {
 	this.id = genomeId;
-	this.nodes = [];
-	this.connections = [];
+	this.nodes = {};
+	this.connections = {};
 
 	this.species = null;
 	this.fitness = 0;
@@ -740,21 +785,23 @@ var Genome = function(genomeId) {
 
 	this.getAvailableConnections = function() {
 		var connections = [];
-		for (var i = 0; i < this.connections.length; ++i) {
-			if (!this.connections[i].disabled) {
-				connections.push(this.connections[i]);
+		for (var connectionId in this.connections) {
+			if (!this.connections[connectionId].disabled) {
+				connections.push(this.connections[connectionId]);
 			}
 		}
 		return connections;
 	};
 
 	this.findConnectionFor = function(inputNodeId, outputNodeId) {
-		for (var i = 0; i < this.connections.length; ++i) {
-			var connection = this.connections[i];
-			if (connection.inputNodeId == outputNodeId && connection.outputNodeId == inputNodeId) {
-				console.error("Invalid connection!?", inputNodeId, outputNodeId);
-			} else if (connection.inputNodeId == inputNodeId && connection.outputNodeId == outputNodeId) {
-				return connection;
+		for (var connectionId in this.connections) {
+			var connection = this.connections[connectionId];
+			if (!connection.disabled) {
+				if (connection.inputNodeId == outputNodeId && connection.outputNodeId == inputNodeId) {
+					console.error("Invalid connection!?", inputNodeId, outputNodeId);
+				} else if (connection.inputNodeId == inputNodeId && connection.outputNodeId == outputNodeId) {
+					return connection;
+				}
 			}
 		}
 		return null;
@@ -762,28 +809,23 @@ var Genome = function(genomeId) {
 
 	this.addConnection = function(id, inputNodeId, outputNodeId, weight, disabled) {
 		var connectionNew = new Connection(id, inputNodeId, outputNodeId, weight, disabled, this.nodes);
-		this.connections.push(connectionNew);
+		this.connections[id] = connectionNew;
 
-		for (var i = 0; i < this.nodes.length; ++i) {
-			if (this.nodes[i].id == inputNodeId) {
-				this.nodes[i].outputConnections.push(connectionNew);
-			} else if (this.nodes[i].id == outputNodeId) {
-				this.nodes[i].inputConnections.push(connectionNew);
-			}
-		}
+		this.nodes[inputNodeId].outputConnections.push(connectionNew);
+		this.nodes[outputNodeId].inputConnections.push(connectionNew);
 		return connectionNew;
 	};
 
 	this.addNode = function(id, type) {
 		var nodeNew = new Node(id, type);
-		this.nodes.push(nodeNew);
+		this.nodes[id] = nodeNew;
 		return nodeNew;
 	}
 
 	// init input and output nodes
 	for (var i = 0; i < SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT; ++i) {
 		var nodeNew = new Node(i, (i < SimulatorConfig.INPUT_COUNT ? 'input' : 'output'));
-		this.nodes.push(nodeNew);
+		this.nodes[i] = nodeNew;
 
 		if (i < SimulatorConfig.INPUT_COUNT) {
 			this.inputNodes.push(nodeNew);
@@ -811,15 +853,17 @@ var Genome = function(genomeId) {
 		genomeNew.species = this.species;
 
 		// copy additional nodes
-		for (var i = SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT; i < this.nodes.length; ++i) {
-			var node = this.nodes[i];
-			var nodeNew = new Node(node.id, node.type);
-			genomeNew.nodes.push(nodeNew);
+		for (var nodeId in this.nodes) {
+			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT) {
+				var node = this.nodes[nodeId];
+				var nodeNew = new Node(node.id, node.type);
+				genomeNew.nodes[node.id] = nodeNew;
+			}
 		}
 
 		// copy all connections
-		for (var i = 0; i < this.connections.length; ++i) {
-			var connection = this.connections[i];
+		for (var connectionId in this.connections) {
+			var connection = this.connections[connectionId];
 			genomeNew.addConnection(connection.id, connection.inputNodeId, connection.outputNodeId, connection.weight, connection.disabled);
 		}
 		return genomeNew;
@@ -831,17 +875,16 @@ var Genome = function(genomeId) {
 		if (Math.random() < SimulatorConfig.WEIGHT_MUTATION_PROB) {
 			// console.warn("# weight mutation");
 
-			var connections = this.getAvailableConnections();
-
-			if (connections.length > 0) {
-				var connectionIndex = Math.floor(Math.random() * connections.length);
-				var connection = this.connections[connectionIndex];
+			var availableConnections = this.getAvailableConnections();
+			if (availableConnections.length > 0) {
+				var connectionIndex = Math.floor(Math.random() * availableConnections.length);
+				var connection = availableConnections[connectionIndex];
 
 				// test random weight mutation
 				if (Math.random() < SimulatorConfig.WEIGHT_MUTATION_RANDOM_PROB) {
 					connection.weight = Math.random() * 2 - 1;
 				} else {
-					connection.weight = Math.max(-1, Math.min(connection.weight + (Math.random() * 2 - 1) * .6, 1));
+					connection.weight = Math.max(-1, Math.min(connection.weight + (Math.random() * 2 - 1) * .5, 1));
 				}
 			}
 		}
@@ -850,10 +893,10 @@ var Genome = function(genomeId) {
 		if (Math.random() < SimulatorConfig.NODE_MUTATION_PROB) {
 			// console.warn("# node mutation");
 
-			var connections = this.getAvailableConnections();
-			if (connections.length > 0) {
-				var connectionIndex = Math.floor(Math.random() * connections.length);
-				var connection = this.connections[connectionIndex];
+			var availableConnections = this.getAvailableConnections();
+			if (availableConnections.length > 0) {
+				var connectionIndex = Math.floor(Math.random() * availableConnections.length);
+				var connection = availableConnections[connectionIndex];
 
 				var inputNodeIdOriginal = connection.inputNodeId;
 				var outputNodeIdOriginal = connection.outputNodeId;
@@ -896,25 +939,33 @@ var Genome = function(genomeId) {
 		}
 
 		// test connection mutation
-		if (!this.connections.length || Math.random() < SimulatorConfig.CONNECTION_MUTATION_PROB) {
+		if (!Object.keys(this.connections).length || Math.random() < SimulatorConfig.CONNECTION_MUTATION_PROB) {
 			// console.warn("# connection mutation");
 
 			// only accept input or hidden node
-			var inputNodeIndex, inputNode;
+			var nodeIds = Object.keys(this.nodes);
+			var inputNodeId, inputNode;
 			do {
-				inputNodeIndex = Math.floor(Math.random() * this.nodes.length);
-				inputNode = this.nodes[inputNodeIndex];
+				inputNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+				inputNode = this.nodes[inputNodeId];
 			} while (inputNode.type == 'output');
 
 			// find possible outputNode
 			var nodesPossible = [];
-			for (var i = 0; i < this.nodes.length; ++i) {
-				if (i != inputNodeIndex) {
-					var nodeTmp = this.nodes[i];
+			for (var nodeId in this.nodes) {
+				if (nodeId != inputNodeId) {
+					var nodeTmp = this.nodes[nodeId];
+
 					if (nodeTmp.type == 'hidden' || nodeTmp.type == 'output') {
-						var existingConnection = this.findConnectionFor(inputNode.id, nodeTmp.id);
-						if (!existingConnection || (existingConnection && existingConnection.disabled)) {
-							nodesPossible.push(nodeTmp);
+						var isConnectedInput = nodeTmp.isConnectedOutputNode(inputNode.id);
+						if (isConnectedInput) {
+							// console.warn("isConnectedInput = ", inputNode, nodeTmp);
+						}
+						if (!isConnectedInput) {
+							var existingConnection = this.findConnectionFor(inputNode.id, nodeTmp.id);
+							if (!existingConnection || (existingConnection && existingConnection.disabled)) {
+								nodesPossible.push(nodeTmp);
+							}
 						}
 					}
 				}
@@ -958,20 +1009,20 @@ var Genome = function(genomeId) {
 		}
 	};
 
-	this.getGeneDiff = function(genomeOther) {
-		function findConnection(genome, connectionId) {
-			for (var i = 0; i < genome.connections.length; ++i) {
-				var connection = genome.connections[i];
-				if (connection.id == connectionId) {
-					return connection;
-				}
+	this.getMaxConnectionId = function() {
+		var connectionIdMax = -1;
+		for (var connectionId in this.connections) {
+			if (this.connections[connectionId].id > connectionIdMax) {
+				connectionIdMax = this.connections[connectionId].id;
 			}
-			return null;
 		}
+		return connectionIdMax;
+	};
 
+	this.getGeneDiff = function(genomeOther) {
 		// get max innov numbers
-		var innov1 = this.connections[this.connections.length - 1].id;
-		var innov2 = genomeOther.connections[genomeOther.connections.length - 1].id;
+		var innov1 = this.getMaxConnectionId();
+		var innov2 = genomeOther.getMaxConnectionId();
 
 		var result = {
 			disjoints: [],
@@ -980,9 +1031,9 @@ var Genome = function(genomeId) {
 		};
 
 		// from self
-		for (var i = 0; i < this.connections.length; ++i) {
-			var connection = this.connections[i];
-			var connectionOther = findConnection(genomeOther, connection.id);
+		for (var connectionId in this.connections) {
+			var connection = this.connections[connectionId];
+			var connectionOther = genomeOther.connections[connection.id];
 
 			if (connectionOther) {
 				result.weightDiff += Math.abs(connection.weight - connectionOther.weight);
@@ -996,9 +1047,9 @@ var Genome = function(genomeId) {
 		}
 
 		// from other
-		for (var i = 0; i < genomeOther.connections.length; ++i) {
-			var connection = genomeOther.connections[i];
-			var connectionOther = findConnection(this, connection.id);
+		for (var connectionId in genomeOther.connections) {
+			var connection = genomeOther.connections[connectionId];
+			var connectionOther = this.connections[connection.id];
 
 			if (connectionOther) {
 				result.weightDiff += Math.abs(connection.weight - connectionOther.weight);
@@ -1020,7 +1071,7 @@ var Genome = function(genomeId) {
 	this.isSameSpecies = function(speciesRepGenome) {
 		var result = this.getGeneDiff(speciesRepGenome);
 
-		var connectionMaxSize = Math.max(this.connections.length, speciesRepGenome.connections.length);
+		var connectionMaxSize = Math.max(Object.keys(this.connections).length, Object.keys(speciesRepGenome.connections).length);
 		var distance = (
 			SimulatorConfig.SPECIES_COMP_C1 * result.excesses.length / connectionMaxSize + 
 			SimulatorConfig.SPECIES_COMP_C2 * result.disjoints.length / connectionMaxSize + 
@@ -1029,24 +1080,24 @@ var Genome = function(genomeId) {
 		return (distance <= SimulatorConfig.SPECIES_COMP_THRESHOLD);
 	};
 
-	this.export = function() {
-		var txt = '';
-		for (var i = 0; i < this.connections.length; ++i) {
-			txt += (txt ? ',' : '')+this.connections[i].weight.toFixed(6);
-		}
-		return txt;
-	};
+	// this.export = function() {
+	// 	var txt = '';
+	// 	for (var i = 0; i < this.connections.length; ++i) {
+	// 		txt += (txt ? ',' : '')+this.connections[i].weight.toFixed(6);
+	// 	}
+	// 	return txt;
+	// };
 
-	this.import = function(txt) {
-		var tmp = txt.split(',');
-		if (tmp.length != this.connections.length) {
-			console.error("Incorrect length", tmp.length, this.connections.length);
-		} else {
-			for (var i = 0; i < this.connections.length; ++i) {
-				this.connections[i].weight = parseFloat(tmp[i]);
-			}
-		}
-	};
+	// this.import = function(txt) {
+	// 	var tmp = txt.split(',');
+	// 	if (tmp.length != this.connections.length) {
+	// 		console.error("Incorrect length", tmp.length, this.connections.length);
+	// 	} else {
+	// 		for (var i = 0; i < this.connections.length; ++i) {
+	// 			this.connections[i].weight = parseFloat(tmp[i]);
+	// 		}
+	// 	}
+	// };
 
 	return this;
 };
@@ -1058,30 +1109,12 @@ var Connection = function(connectionId, inputNodeId, outputNodeId, weight, disab
 	this.weight = weight || 0;
 	this.disabled = false;
 
-	var inputNode = null;
 	this.getInputNode = function() {
-		if (!inputNode) {
-			for (var i = 0; i < nodes.length; ++i) {
-				if (nodes[i].id == this.inputNodeId) {
-					inputNode = nodes[i];
-					break;
-				}
-			}
-		}
-		return inputNode;
+		return nodes[this.inputNodeId];
 	};
 
-	var outputNode = null;
 	this.getOutputNode = function() {
-		if (!outputNode) {
-			for (var i = 0; i < nodes.length; ++i) {
-				if (nodes[i].id == this.outputNodeId) {
-					outputNode = nodes[i];
-					break;
-				}
-			}
-		}
-		return outputNode;
+		return nodes[this.outputNodeId];
 	};
 
 	return this;
@@ -1103,14 +1136,30 @@ var Node = function(nodeId, type) {
 			var sum = 0;
 			for (var i = 0; i < this.inputConnections.length; ++i) {
 				if (!this.inputConnections[i].disabled) {
-					sum += sigmoid(this.inputConnections[i].getInputNode().calculate() * this.inputConnections[i].weight);
+					sum += sigmoid(this.inputConnections[i].getInputNode().calculate()) * this.inputConnections[i].weight;
 				}
 			}
 			this.value = sum;
-			return sum;
+			return sigmoid(sum);
 		} else {
-			return this.value;
+			return sigmoid(this.value);
 		}
+	};
+
+	this.isConnectedOutputNode = function(nodeId) {
+		var isConnected = false;
+		for (var i = 0; i < this.outputConnections.length; ++i) {
+			var connection = this.outputConnections[i];
+			if (!connection.disabled) {
+				var outputNode = connection.getOutputNode();
+				if (outputNode.id == nodeId) {
+					return true;
+				} else {
+					isConnected |= outputNode.isConnectedOutputNode(nodeId);
+				}
+			}
+		}
+		return isConnected;
 	};
 
 	return this;
@@ -1130,14 +1179,14 @@ var thisSimulator;
 var SimulatorConfig = {
 	FRAME_DELAY: 100,
 	POPULATION_MAX: 1000,
-	INPUT_COUNT: 7,
+	INPUT_COUNT: 5,
 	OUTPUT_COUNT: 3,
 	STAGNATION_GENERATION_COUNT: 15,
-	OFFSPRING_PROP: .75,
-	MUTATION_PROB: .25,
+	OFFSPRING_REMOVE_PROP: .85,
+	MUTATION_PROB: .8,
 	WEIGHT_MUTATION_PROB: .8,
-	WEIGHT_MUTATION_RANDOM_PROB: .1,
-	NODE_MUTATION_PROB: .03,
+	WEIGHT_MUTATION_RANDOM_PROB: .3,
+	NODE_MUTATION_PROB: .001,
 	CONNECTION_MUTATION_PROB: .3,
 	SPECIES_COMP_C1: 1.0,
 	SPECIES_COMP_C2: 0.4,
@@ -1149,48 +1198,32 @@ $('#btnStart').click(function() {
 	thisSimulator = new Simulator();
 
 	$('#btnStart').hide();
-	$('#btnRunSpecies, #btnRunGeneration, #btnRun300Generation, #btnRun1000Generation, #btnRun100Generation, #chbSkip').show();
+	$('.btn-run, #chbSkip').show();
 });
 $('#btnPause').click(function() {
+	$('.btn-run').prop('disabled', 'disabled');
 	thisSimulator.pause();
 	$('#btnPause').hide();
 	$('#btnResume').show();
 	thisSimulator.isPaused = true;
-	$('#btnRunSpecies, #btnRunGeneration, #btnRun300Generation, #btnRun1000Generation, #btnRun100Generation').prop('disabled', 'disabled');
 });
 $('#btnResume').click(function() {
+	$('.btn-run').prop('disabled', '');
 	thisSimulator.resume();
 	$('#btnPause').show();
 	$('#btnResume').hide();
 	thisSimulator.isPaused = false;
-	$('#btnRunSpecies, #btnRunGeneration, #btnRun300Generation, #btnRun1000Generation, #btnRun100Generation').prop('disabled', '');
-});
-$('#btnRun1000Generation').click(function() {
-	thisSimulator.simState = 0;
-	thisSimulator.simGenerationsLeft = 1000;
-	thisSimulator.resume();
-	$('#btnPause').show();
-});
-$('#btnRun300Generation').click(function() {
-	thisSimulator.simState = 0;
-	thisSimulator.simGenerationsLeft = 100;
-	thisSimulator.resume();
-	$('#btnPause').show();
-});
-$('#btnRun100Generation').click(function() {
-	thisSimulator.simState = 0;
-	thisSimulator.simGenerationsLeft = 20;
-	thisSimulator.resume();
-	$('#btnPause').show();
-});
-$('#btnRunGeneration').click(function() {
-	thisSimulator.simState = 0;
-	thisSimulator.simGenerationsLeft = 1;
-	thisSimulator.resume();
-	$('#btnPause').show();
 });
 $('#btnRunSpecies').click(function() {
+	$('.btn-run').prop('disabled', 'disabled');
 	thisSimulator.simState = 1;
+	thisSimulator.resume();
+	$('#btnPause').show();
+});
+$('.btn-run-generation').click(function() {
+	$('.btn-run').prop('disabled', 'disabled');
+	thisSimulator.simState = 0;
+	thisSimulator.simGenerationsLeft = parseInt($(this).data('count'));
 	thisSimulator.resume();
 	$('#btnPause').show();
 });
