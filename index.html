@@ -649,7 +649,7 @@ var Generation = function() {
 				var offspringCount = Math.round(SimulatorConfig.POPULATION_MAX * speciesTotalFitnesses[z] / speciesTotalFitnessesSum);
 				// copy the best genome
 				if (speciesGenomes[z].length >= 5) {
-					genomes.push(speciesGenomes[z][0]);
+					genomes.push(speciesGenomes[z][0].clone());
 
 					if (offspringCount > 0) {
 						--offspringCount;
