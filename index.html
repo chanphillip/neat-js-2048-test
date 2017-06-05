@@ -733,11 +733,16 @@ var Generation = function() {
 			} else {
 				// test mutation
 				if (Math.random() < SimulatorConfig.MUTATION_PROB) {
-					var genomeNew = genomesOriginal[0].clone();
+					var index = Math.floor(Math.random() * genomesOriginal.length);
+					var genomeNew = genomesOriginal[index].clone();
 					genomeNew.mutate(nodesAdded, connectionsAdded);
 				} else {
-					// TODO: crossover
-					genomeNew = genomesOriginal[0].clone();
+					var index1 = Math.floor(Math.random() * genomesOriginal.length);
+					var index2;
+					do {
+						index2 = Math.floor(Math.random() * genomesOriginal.length);
+					} while (index1 == index2);
+					genomeNew = genomesOriginal[index1].crossover(genomesOriginal[index2]);
 				}
 			}
 			genomes.push(genomeNew);
@@ -866,6 +871,100 @@ var Genome = function(genomeId) {
 			var connection = this.connections[connectionId];
 			genomeNew.addConnection(connection.id, connection.inputNodeId, connection.outputNodeId, connection.weight, connection.disabled);
 		}
+		return genomeNew;
+	};
+
+	this.crossover = function(genomeOther) {
+		var genomeNew = new Genome(thisSimulator.genomeIdInc++);
+
+		// copy species
+		genomeNew.species = this.species;
+
+		// copy additional nodes
+		for (var nodeId in this.nodes) {
+			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT) {
+				var node = this.nodes[nodeId];
+				var nodeNew = new Node(node.id, node.type);
+				genomeNew.nodes[node.id] = nodeNew;
+			}
+		}
+		for (var nodeId in genomeOther.nodes) {
+			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT) {
+				var node = genomeOther.nodes[nodeId];
+				if (!genomeNew.nodes[node.id]) {
+					var nodeNew = new Node(node.id, node.type);
+					genomeNew.nodes[node.id] = nodeNew;
+				}
+			}
+		}
+
+		// get connection arrays
+		var connections1 = [];
+		var connections2 = [];
+
+		for (var connectionId in this.connections) {
+			connections1.push(this.connections[connectionId]);
+		}
+		for (var connectionId in genomeOther.connections) {
+			connections2.push(genomeOther.connections[connectionId]);
+		}
+
+		// go through all connections
+		var index1 = 0;
+		var index2 = 0;
+
+		// var connectionsTmp = [];	// for debugging
+		while (index1 < connections1.length || index2 < connections2.length) {
+			var connectionOriginal = null;
+			var forceDisabled = false;
+
+			if (index2 >= connections2.length || (index1 < connections1.length && connections1[index1].id < connections2[index2].id)) {
+				if (this.fitness >= genomeOther.fitness) {
+					connectionOriginal = connections1[index1];
+				}
+				++index1;
+			} else if (index1 >= connections1.length || (index2 < connections2.length && connections1[index1].id > connections2[index2].id)) {
+				if (this.fitness <= genomeOther.fitness) {
+					connectionOriginal = connections2[index2];
+				}
+				++index2;
+			} else {
+				// force disabled
+				if (connections1[index1].disabled || connections2[index2].disabled) {
+					forceDisabled = true;
+				}
+				connectionOriginal = Math.random() < .5 ? connections1[index1] : connections2[index2];
+
+				++index1;
+				++index2;
+			}
+
+			if (connectionOriginal) {
+				var connectionNew = genomeNew.addConnection(connectionOriginal.id, connectionOriginal.inputNodeId, connectionOriginal.outputNodeId, connectionOriginal.weight, forceDisabled ? false : connectionOriginal.disabled);
+				// connectionsTmp.push(connectionNew);		// for debugging
+			}
+		}
+
+		// debug
+		// var ids = [];
+		// for (var i = 0; i < connections1.length; ++i) {
+		// 	ids.push((connections1[i].disabled ? '!' : '')+connections1[i].id+'('+connections1[i].weight.toFixed(3)+')');
+		// }
+		// console.log(this.fitness+': '+ids.join(', '));
+
+		// ids = [];
+		// for (var i = 0; i < connections2.length; ++i) {
+		// 	ids.push((connections2[i].disabled ? '!' : '')+connections2[i].id+'('+connections2[i].weight.toFixed(3)+')');
+		// }
+		// console.log(genomeOther.fitness+': '+ids.join(', '));
+
+		// ids = [];
+		// for (var i = 0; i < connectionsTmp.length; ++i) {
+		// 	ids.push((connectionsTmp[i].disabled ? '!' : '')+connectionsTmp[i].id+'('+connectionsTmp[i].weight.toFixed(3)+')');
+		// }
+		// console.log(ids.join(', '));
+		// console.warn('-------');
+
 		return genomeNew;
 	};
 
