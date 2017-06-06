@@ -773,7 +773,7 @@ var Species = function(speciesId) {
 	this.addFitnessMax = function(fitnessMax) {
 		this.fitnessMaxHistories.push(fitnessMax);
 		if (this.fitnessMaxHistories.length > SimulatorConfig.STAGNATION_GENERATION_COUNT) {
-			this.fitnessMaxHistories.unshift();
+			this.fitnessMaxHistories.shift();
 		}
 	};
 
