@@ -1297,14 +1297,106 @@ var Node = function(nodeId, type) {
 	return this;
 };
 
-function findById(id) {
-	// for (var i = 0; i < thisSimulator.generations.length; ++i) {
-	// 	for (var j = 0; j < thisSimulator.generations[i].species.length; ++j) {
-	// 		if (thisSimulator.generations[i].species[j].id == id) {
-	// 			return thisSimulator.generations[i].species[j];
-	// 		}
-	// 	}
-	// }
+
+function exportGenerationData() {
+	var generationData = {
+		genomes: [],
+		species: []
+	};
+
+	var generation = thisSimulator.generations[thisSimulator.generations.length - 1];
+	for (var i = 0; i < generation.genomes.length; ++i) {
+		var genome = generation.genomes[i];
+
+		var connections = [];
+		var nodes = [];
+
+		for (var connectionId in genome.connections) {
+			var connection = genome.connections[connectionId];
+			connections.push({
+				id: connectionId,
+				inputNodeId: connection.inputNodeId,
+				outputNodeId: connection.outputNodeId,
+				weight: connection.weight,
+				disabled: connection.disabled
+			});
+		}
+
+		for (var nodeId in genome.nodes) {
+			var node = genome.nodes[nodeId];
+			if (node.type == 'hidden') {
+				nodes.push({
+					id: nodeId
+				});
+			}
+		}
+
+		var genomeData = {
+			id: genome.id,
+			connections: connections,
+			nodes: nodes,
+			speciesId: genome.species.id
+		};
+
+		generationData.genomes.push(genomeData);
+	}
+
+	for (var speciesId in generation.species) {
+		var species = generation.species[speciesId];
+		generationData.species.push({
+			id: species.id,
+			fitnessMaxHistories: species.fitnessMaxHistories
+		});
+	}
+
+	var wm = window.open();
+	wm.document.write(JSON.stringify(generationData));
+}
+
+function importGenerationData(generationData) {
+	var generation = new Generation();
+	thisSimulator.generations.push(generation);
+	thisSimulator.currGenome = -1;
+
+	for (var i = 0; i < generationData.species.length; ++i) {
+		var speciesData = generationData.species[i];
+		var species = generation.addSpecies(speciesData.id);
+		species.fitnessMaxHistories = speciesData.fitnessMaxHistories;
+	}
+
+	for (var i = 0; i < generationData.genomes.length; ++i) {
+		var genomeData = generationData.genomes[i];
+		var genome = new Genome(genomeData.id);
+
+		genome.species = generation.species[genomeData.speciesId];
+
+		for (var j = 0; j < genomeData.nodes.length; ++j) {
+			var nodeData = genomeData.nodes[j];
+			genome.addNode(nodeData.id, 'hidden');
+
+			if (nodeData.id > thisSimulator.nodeIdInc) {
+				thisSimulator.nodeIdInc = nodeData.id;
+			}
+		}
+
+		for (var j = 0; j < genomeData.connections.length; ++j) {
+			var connectionData = genomeData.connections[j];
+			genome.addConnection(connectionData.id, connectionData.inputNodeId, connectionData.outputNodeId, connectionData.weight, connectionData.disabled);
+
+			if (connectionData.id > thisSimulator.connectionIdInc) {
+				thisSimulator.connectionIdInc = connectionData.id;
+			}
+		}
+
+		generation.genomes.push(genome);
+	}
+
+	thisSimulator.speciesIdInc = generationData.species[generationData.species.length - 1].id + 1;
+	thisSimulator.genomeIdInc = generationData.genomes[generationData.genomes.length - 1].id + 1;
+	++thisSimulator.connectionIdInc;
+	++thisSimulator.nodeIdInc;
+
+	generation.initAllSpecies();
 }
 
 var thisSimulator;
