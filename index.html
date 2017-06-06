@@ -349,7 +349,7 @@ var Simulator = function() {
 						name: connection.weight.toFixed(3)
 					},
 					style: {
-						width: Math.abs(connection.weight) * 2,
+						width: Math.abs(connection.weight) * 2 / SimulatorConfig.WEIGHT_CAP,
 						'line-color': connection.weight < 0 ? '#F00' : '#0D0'
 					}
 				});
@@ -992,9 +992,9 @@ var Genome = function(genomeId) {
 
 				// test random weight mutation
 				if (Math.random() < SimulatorConfig.WEIGHT_MUTATION_RANDOM_PROB) {
-					connection.weight = Math.random() * 2 - 1;
+					connection.weight = (Math.random() * 2 - 1) * SimulatorConfig.WEIGHT_CAP;
 				} else {
-					connection.weight = Math.max(-1, Math.min(connection.weight + (Math.random() * 2 - 1) * .5, 1));
+					connection.weight = Math.max(-SimulatorConfig.WEIGHT_CAP, Math.min(connection.weight + (Math.random() * 2 - 1) * .5, SimulatorConfig.WEIGHT_CAP));
 				}
 			}
 		}
@@ -1103,7 +1103,7 @@ var Genome = function(genomeId) {
 					weightNew = existingConnection.weight;
 					console.warn('???', this);
 				} else {
-					weightNew = Math.random() * 2 - 1;
+					weightNew = (Math.random() * 2 - 1) * SimulatorConfig.WEIGHT_CAP;
 					var connectionNew = this.addConnection(thisSimulator.connectionIdInc++, inputNode.id, outputNode.id, weightNew, false);
 				}
 
@@ -1313,6 +1313,7 @@ var SimulatorConfig = {
 	POPULATION_MAX: 1000,
 	INPUT_COUNT: 7,
 	OUTPUT_COUNT: 3,
+	WEIGHT_CAP: 8,
 	STAGNATION_GENERATION_COUNT: 15,
 	OFFSPRING_REMOVE_PROP: .85,
 	MUTATION_PROB: .8,
