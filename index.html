@@ -581,7 +581,7 @@ var Game = function(player) {
 		for (var i = 0; i < 4; ++i) {
 			for (var j = 0; j < 4; ++j) {
 				var cell = this.gameObj.grid.cells[i][j];
-				var value = 0;
+				var value = -11;
 				if (cell) {
 					value = Math.log(cell.value) / Math.log(2);
 					if (normalized) {
