@@ -581,11 +581,12 @@ var Game = function(player) {
 		for (var i = 0; i < 4; ++i) {
 			for (var j = 0; j < 4; ++j) {
 				var cell = this.gameObj.grid.cells[i][j];
-				var value = -11;
+				var value = -2048;
 				if (cell) {
-					value = Math.log(cell.value) / Math.log(2);
 					if (normalized) {
-						value /= 11;
+						value = cell.value / 2048;
+					} else {
+						value = String.fromCharCode(Math.log(cell.value) / Math.log(2) + 65);
 					}
 				}
 				playerInputs.push(value);
