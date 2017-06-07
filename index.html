@@ -214,6 +214,8 @@ button { border: 1px solid #DDD; font-size: 14px; padding: 4px 8px; margin: 1px 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.6.0/Chart.min.js"></script>
 
 <script>
+'use strict';
+
 var Simulator = function() {
 	this.generations = [];
 
@@ -1321,12 +1323,12 @@ var Genome = function(genomeId) {
 			var node = this.nodes[nodeId];
 			node.inputConnections = null;
 			node.outputConnections = null;
-			delete node;
+			delete this.nodes[nodeId];
 		}
 
 		for (var connectionId in this.connections) {
 			var connection = this.connections[connectionId];
-			delete connection;
+			delete this.connections[connectionId];
 		}
 
 		this.nodes = null;
