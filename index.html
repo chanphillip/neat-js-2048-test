@@ -188,7 +188,7 @@ button { border: 1px solid #DDD; font-size: 14px; padding: 4px 8px; margin: 1px 
 				<button id="btnPause" hidden>Pause</button>
 				<button id="btnResume" hidden>Resume</button>
 				<br>
-				<button class="btn-run btn-run-generation" data-count="300" hidden>300 Gen</button>
+				<button class="btn-run btn-run-generation" data-count="200" hidden>200 Gen</button>
 				<button class="btn-run btn-run-generation" data-count="100" hidden>100 Gen</button>
 				<button class="btn-run btn-run-generation" data-count="50" hidden>50 Gen</button>
 				<button class="btn-run btn-run-generation" data-count="20" hidden>20 Gen</button>
@@ -516,7 +516,7 @@ var Simulator = function() {
 
 			labels.push((i + 1)+": "+fitnessMaxData.genome.species.id);
 			data1.push(fitnessMaxData.fitnessMax);
-			data2.push(fitnessMaxData.fitnessAverage * 100);
+			data2.push(fitnessMaxData.fitnessAverage * 10);
 			// data2.push(this.generations[i].getAverageFitness());
 		}
 
