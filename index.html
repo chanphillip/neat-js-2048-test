@@ -382,8 +382,8 @@ var Simulator = function() {
 				{
 					selector: 'node',
 					style: {
-						width: 40,
-						height: 40,
+						width: 30,
+						height: 30,
 						content: 'data(name)',
 						'text-wrap': 'wrap',
 						'text-valign': 'center',
@@ -434,26 +434,26 @@ var Simulator = function() {
 				data.push({
 					data: {
 						id: 'n'+node.id,
-						name: node.value.toFixed(3)
+						name: node.value.toFixed(1)
 					},
 					position: {
-						y: 40,
-						x: 50 * (node.id + 1)
+						y: 30,
+						x: 32 * (node.id + 1)
 					},
 					classes: 'input',
 					style: {
-						'background-color': node.value >= .5 ? '#F3F' : '#999'
+						'background-color': node.value > 0 ? '#F3F' : '#999'
 					}
 				});
 			} else if (node.type == 'output') {
 				data.push({
 					data: {
 						id: 'n'+node.id,
-						name: value.toFixed(3)
+						name: value.toFixed(1)
 					},
 					position: {
 						y: 280,
-						x: 50 * (node.id - SimulatorConfig.INPUT_COUNT + 1)
+						x: 32 * (node.id - SimulatorConfig.INPUT_COUNT + 1)
 					},
 					classes: 'output',
 					style: {
@@ -464,11 +464,11 @@ var Simulator = function() {
 				data.push({
 					data: {
 						id: 'n'+node.id,
-						name: value.toFixed(3)
+						name: value.toFixed(1)
 					},
 					position: {
 						y: 160,
-						x: 50 * (hiddenNodeI++) + 25
+						x: 32 * (hiddenNodeI++) + 20
 					},
 					classes: 'hidden',
 					style: {
