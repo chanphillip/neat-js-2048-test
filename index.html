@@ -230,7 +230,7 @@ var Simulator = function() {
 	this.speciesIdInc = 0;
 	this.genomeIdInc = 0;
 	this.connectionIdInc = 0;
-	this.nodeIdInc = SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT;
+	this.nodeIdInc = SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT + 1;
 
 	this.game = null;
 
@@ -975,6 +975,11 @@ var Genome = function(genomeId) {
 			this.outputNodes.push(nodeNew);
 		}
 	}
+
+	// bias node
+	var nodeNew = new Node(SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT, 'input');
+	this.nodes[SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT] = nodeNew;
+	nodeNew.value = 100;
 
 	this.decide = function(inputs) {
 		for (var i = 0; i < SimulatorConfig.INPUT_COUNT; ++i) {
