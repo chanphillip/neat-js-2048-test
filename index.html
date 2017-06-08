@@ -216,6 +216,35 @@ button { border: 1px solid #DDD; font-size: 14px; padding: 4px 8px; margin: 1px 
 <script>
 'use strict';
 
+GameManager.prototype.canMove = function (direction) {
+  // 0: up, 1: right, 2: down, 3: left
+  var self = this;
+
+  var cell, tile;
+
+  var vector     = this.getVector(direction);
+  var traversals = this.buildTraversals(vector);
+  var moved      = false;
+
+  // Traverse the grid in the right direction and move tiles
+  traversals.x.forEach(function (x) {
+    traversals.y.forEach(function (y) {
+      cell = { x: x, y: y };
+      tile = self.grid.cellContent(cell);
+
+      if (tile) {
+        var positions = self.findFarthestPosition(cell, vector);
+
+        if (!self.positionsEqual(cell, positions.farthest)) {
+          moved = true; // The tile moved from its original cell!
+        }
+      }
+    });
+  });
+
+  return moved;
+};
+
 var Simulator = function() {
 	this.generations = [];
 
@@ -600,6 +629,11 @@ var Game = function(player) {
 
 		// get player inputs
 		var playerInputs = this.getCellData(true);
+
+		// canMove as additional inputs
+		for (var i = 0; i < 4; ++i) {
+			playerInputs.push(this.gameObj.canMove(i) ? 1 : -1);
+		}
 
 		// player moves
 		var decisions = this.player.decide(playerInputs);
@@ -1534,7 +1568,7 @@ var thisSimulator;
 var SimulatorConfig = {
 	FRAME_DELAY: 100,
 	POPULATION_MAX: 100,
-	INPUT_COUNT: 16,
+	INPUT_COUNT: 20,
 	OUTPUT_COUNT: 4,
 	WEIGHT_CAP: 10,
 	STAGNATION_GENERATION_COUNT: 15,
