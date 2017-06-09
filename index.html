@@ -603,8 +603,6 @@ var Game = function(player) {
 		this.gameObj.restart();
 	};
 
-	var CELL_DATA_COUNT = 3;
-	var cellDataPrev = [];
 	this.getCellData = function(normalized) {
 		var playerInputs = [];
 		for (var i = 0; i < 4; ++i) {
@@ -650,30 +648,20 @@ var Game = function(player) {
 			return b.value - a.value;
 		});
 
-		this.gameObj.move(sortedDecisions[0].i);
+		// check move valid
+		if (!this.gameObj.canMove(sortedDecisions[0].i)) {
+			this.fitness = this.gameObj.score;
 
-		this.fitness = this.gameObj.score;
-
-		// check death
-		if (this.gameObj.over && !this.gameObj.won) {
 			this.state = 1;
 			return true;
 		}
 
-		// check useless moves
-		cellDataPrev.push(this.getCellData(false).join(','));
-		if (cellDataPrev.length > CELL_DATA_COUNT) {
-			cellDataPrev.shift();
-		}
-		var same = true;
-		for (var i = 1; i < CELL_DATA_COUNT; ++i) {
-			if (cellDataPrev[i] != cellDataPrev[0]) {
-				same = false;
-				break;
-			}
-		}
+		// move
+		this.gameObj.move(sortedDecisions[0].i);
+		this.fitness = this.gameObj.score;
 
-		if (same) {
+		// check death
+		if (this.gameObj.over && !this.gameObj.won) {
 			this.state = 1;
 			return true;
 		}
