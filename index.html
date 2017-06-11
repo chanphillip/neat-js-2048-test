@@ -1021,6 +1021,10 @@ var Genome = function(genomeId) {
 	this.nodes[SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT] = nodeNew;
 	nodeNew.value = 100;
 
+	for (var i = 0; i < 4; ++i) {
+		this.addConnection(thisSimulator.connectionIdInc++, SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT, SimulatorConfig.INPUT_COUNT + i, 0, false);
+	}
+
 	this.decide = function(inputs) {
 		for (var i = 0; i < SimulatorConfig.INPUT_COUNT; ++i) {
 			this.inputNodes[i].value = inputs[i];
