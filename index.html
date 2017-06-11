@@ -12,7 +12,18 @@
   <!--<script src="2048-master/js/application.js"></script>-->
 <!-- // -->
 
-<script src="generation-backup.js"></script>
+<script>
+(function(d, script) {
+    script = d.createElement('script');
+    script.type = 'text/javascript';
+    script.async = true;
+    script.onload = function(){
+        // remote script has loaded
+    };
+    script.src = 'generation-backup.js?z='+(new Date()).getTime().toString();
+    d.getElementsByTagName('head')[0].appendChild(script);
+}(document));
+</script>
 
 <style>
 body { background: #EEE; padding: 20px }
