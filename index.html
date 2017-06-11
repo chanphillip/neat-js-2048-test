@@ -1025,7 +1025,7 @@ var Genome = function(genomeId) {
 
 		// copy additional nodes
 		for (var nodeId in this.nodes) {
-			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT) {
+			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT + 1) {
 				var node = this.nodes[nodeId];
 				var nodeNew = new Node(node.id, node.type);
 				genomeNew.nodes[node.id] = nodeNew;
@@ -1048,14 +1048,14 @@ var Genome = function(genomeId) {
 
 		// copy additional nodes
 		for (var nodeId in this.nodes) {
-			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT) {
+			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT + 1) {
 				var node = this.nodes[nodeId];
 				var nodeNew = new Node(node.id, node.type);
 				genomeNew.nodes[node.id] = nodeNew;
 			}
 		}
 		for (var nodeId in genomeOther.nodes) {
-			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT) {
+			if (parseInt(nodeId) >= SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT + 1) {
 				var node = genomeOther.nodes[nodeId];
 				if (!genomeNew.nodes[node.id]) {
 					var nodeNew = new Node(node.id, node.type);
