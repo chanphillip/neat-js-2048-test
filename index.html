@@ -719,6 +719,10 @@ var Generation = function() {
 		var speciesNew = this.addSpecies(thisSimulator.speciesIdInc++);
 		genomeNew.species = speciesNew;
 
+		for (var i = 0; i < 4; ++i) {
+			genomeNew.addConnection(thisSimulator.connectionIdInc++, SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT, SimulatorConfig.INPUT_COUNT + i, 0, false);
+		}
+
 		this.genomes.push(genomeNew);
 
 		for (var i = 1; i < SimulatorConfig.POPULATION_MAX; ++i) {
@@ -1020,10 +1024,6 @@ var Genome = function(genomeId) {
 	var nodeNew = new Node(SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT, 'input');
 	this.nodes[SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT] = nodeNew;
 	nodeNew.value = 100;
-
-	for (var i = 0; i < 4; ++i) {
-		this.addConnection(thisSimulator.connectionIdInc++, SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT, SimulatorConfig.INPUT_COUNT + i, 0, false);
-	}
 
 	this.decide = function(inputs) {
 		for (var i = 0; i < SimulatorConfig.INPUT_COUNT; ++i) {
