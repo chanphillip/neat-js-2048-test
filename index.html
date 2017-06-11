@@ -473,15 +473,20 @@ var Simulator = function() {
 			var node = genome.nodes[nodeId];
 			var value = node.calculate();
 			if (node.type == 'input') {
+				var position = nodeId == SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT ? {
+					y: 95,
+					x: 655
+				} : {
+					y: 30,
+					x: 32 * (node.id + 1)
+				};
+
 				data.push({
 					data: {
 						id: 'n'+node.id,
 						name: node.value.toFixed(1)
 					},
-					position: {
-						y: 30,
-						x: 32 * (node.id + 1)
-					},
+					position: position,
 					classes: 'input',
 					style: {
 						'background-color': node.value > 0 ? '#F3F' : '#999'
