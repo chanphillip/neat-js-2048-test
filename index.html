@@ -1443,7 +1443,7 @@ var Node = function(nodeId, type) {
 			var sum = 0;
 			for (var i = 0; i < this.inputConnections.length; ++i) {
 				if (!this.inputConnections[i].disabled) {
-					sum += sigmoid(this.inputConnections[i].getInputNode().calculate()) * this.inputConnections[i].weight;
+					sum += this.inputConnections[i].getInputNode().calculate() * this.inputConnections[i].weight;
 				}
 			}
 			this.value = sum;
