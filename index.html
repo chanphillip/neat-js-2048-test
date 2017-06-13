@@ -1023,7 +1023,7 @@ var Genome = function(genomeId) {
 	// bias node
 	var nodeNew = new Node(SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT, 'input');
 	this.nodes[SimulatorConfig.INPUT_COUNT + SimulatorConfig.OUTPUT_COUNT] = nodeNew;
-	nodeNew.value = 100;
+	nodeNew.value = 1;
 
 	this.decide = function(inputs) {
 		for (var i = 0; i < SimulatorConfig.INPUT_COUNT; ++i) {
