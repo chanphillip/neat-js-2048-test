@@ -834,6 +834,25 @@ var Generation = function() {
 				}
 			}
 		}
+
+		// in case of all dead
+		if (genomes.length == 0) {
+			for (var z in speciesGenomes) {
+				// sort genomes by adjusted fitness
+				speciesGenomes[z].sort(function(a, b) {
+					return b.adjustedFitness - a.adjustedFitness;
+				});
+
+				// remove lowest performing genomes
+				var removeCount = Math.floor(generationPrev.speciesCounts[z] * SimulatorConfig.OFFSPRING_REMOVE_PROP);
+				speciesGenomes[z].splice(speciesGenomes[z].length - removeCount - 1, removeCount);
+
+				genomes = genomes.concat(this.reproduceGenomes(speciesGenomes[z], SimulatorConfig.POPULATION_MAX));
+
+				break;		// only the first one
+			}
+		}
+
 		this.genomes = genomes;
 	};
 
